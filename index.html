@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>矿山扫码计数系统</title>
+
+    <script
+        src="https://unpkg.com/html5-qrcode"
+        type="text/javascript">
+    </script>
+
+    <style>
+
+        body {
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 24px;
+        }
+
+        label {
+            display: block;
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 16px;
+            padding: 15px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        #location,
+        #scanResult,
+        #result {
+            margin-top: 16px;
+            padding: 15px;
+            background: #eeeeee;
+            border-radius: 8px;
+            line-height: 1.8;
+        }
+
+        #reader {
+            margin-top: 20px;
+            width: 100%;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>矿山扫码计数系统</h1>
+
+    <label>司机姓名</label>
+
+    <input
+        id="driver"
+        type="text"
+        placeholder="请输入司机姓名"
+    >
+
+    <label>车辆编号</label>
+
+    <input
+        id="truck"
+        type="text"
+        placeholder="例如：北奔023"
+    >
+
+    <button onclick="getLocation()">
+        获取当前位置
+    </button>
+
+    <div id="location">
+        当前状态：尚未获取定位
+    </div>
+
+    <button onclick="startScanner()">
+        开始扫描二维码
+    </button>
+
+    <div id="reader"></div>
+
+    <div id="scanResult">
+        尚未扫描二维码
+    </div>
+
+    <div id="result">
+        等待位置验证
+    </div>
+
+</div>
+
+
+<script>
+
+    let currentLat = null;
+    let currentLng = null;
+    let currentAccuracy = null;
+
+    let scannerStarted = false;
+
+    let html5QrCode = null;
+
+
+    function getLocation() {
+
+        const locationBox =
+            document.getElementById("location");
+
+        locationBox.innerHTML =
+            "正在获取定位...";
+
+        if (!navigator.geolocation) {
+
+            locationBox.innerHTML =
+                "当前浏览器不支持GPS定位";
+
+            return;
+        }
+
+
+        navigator.geolocation.getCurrentPosition(
+
+            function(position) {
+
+                currentLat =
+                    position.coords.latitude;
+
+                currentLng =
+                    position.coords.longitude;
+
+                currentAccuracy =
+                    position.coords.accuracy;
+
+                locationBox.innerHTML =
+                    "定位成功！" +
+                    "<br><br>" +
+
+                    "纬度：" +
+                    currentLat.toFixed(6) +
+
+                    "<br>" +
+
+                    "经度：" +
+                    currentLng.toFixed(6) +
+
+                    "<br>" +
+
+                    "定位精度：" +
+                    currentAccuracy.toFixed(1) +
+                    " 米";
+
+            },
+
+
+            function(error) {
+
+                locationBox.innerHTML =
+                    "定位失败，请检查位置权限";
+
+            },
+
+
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            }
+
+        );
+
+    }
+
+
+
+    function getDistance(
+        lat1,
+        lon1,
+        lat2,
+        lon2
+    ) {
+
+        const R = 6371000;
+
+        const radLat1 =
+            lat1 * Math.PI / 180;
+
+        const radLat2 =
+            lat2 * Math.PI / 180;
+
+        const deltaLat =
+            (lat2 - lat1) *
+            Math.PI / 180;
+
+        const deltaLon =
+            (lon2 - lon1) *
+            Math.PI / 180;
+
+        const a =
+            Math.sin(deltaLat / 2) *
+            Math.sin(deltaLat / 2) +
+
+            Math.cos(radLat1) *
+            Math.cos(radLat2) *
+
+            Math.sin(deltaLon / 2) *
+            Math.sin(deltaLon / 2);
+
+        const c =
+            2 *
+            Math.atan2(
+                Math.sqrt(a),
+                Math.sqrt(1 - a)
+            );
+
+        return R * c;
+    }
+
+
+
+    function startScanner() {
+
+        if (scannerStarted) {
+            return;
+        }
+
+
+        html5QrCode =
+            new Html5Qrcode("reader");
+
+
+        const config = {
+
+            fps: 10,
+
+            qrbox: {
+                width: 250,
+                height: 250
+            }
+
+        };
+
+
+        html5QrCode.start(
+
+            {
+                facingMode: "environment"
+            },
+
+            config,
+
+            onScanSuccess,
+
+            onScanFailure
+
+        )
+
+        .then(function() {
+
+            scannerStarted = true;
+
+        })
+
+        .catch(function(error) {
+
+            document.getElementById(
+                "scanResult"
+            ).innerHTML =
+                "摄像头启动失败：" +
+                error;
+
+        });
+
+    }
+
+
+
+    function onScanSuccess(
+        decodedText,
+        decodedResult
+    ) {
+
+        document.getElementById(
+            "scanResult"
+        ).innerHTML =
+
+            "扫描成功！" +
+
+            "<br>" +
+
+            "二维码编号：" +
+            decodedText;
+
+
+        stopScanner();
+
+
+        checkQrPoint(decodedText);
+
+    }
+
+
+
+    function onScanFailure(error) {
+
+        // 没扫到二维码时不提示，
+        // 否则页面会不停刷错误信息。
+
+    }
+
+
+
+    function stopScanner() {
+
+        if (!html5QrCode) {
+            return;
+        }
+
+
+        html5QrCode.stop()
+
+        .then(function() {
+
+            scannerStarted = false;
+
+            html5QrCode.clear();
+
+        })
+
+        .catch(function(error) {
+
+            console.log(error);
+
+        });
+
+    }
+
+
+
+    function checkQrPoint(qrText) {
+
+        const resultBox =
+            document.getElementById("result");
+
+
+        if (
+            currentLat === null ||
+            currentLng === null
+        ) {
+
+            resultBox.innerHTML =
+                "二维码扫描成功，但请先获取GPS位置";
+
+            return;
+
+        }
+
+
+        const qrCode =
+            qrText
+                .trim()
+                .toUpperCase();
+
+
+        let targetLat = null;
+
+        let targetLng = null;
+
+        let pointName = "";
+
+        let radius = 50;
+
+
+
+        if (qrCode === "XIEZAI01") {
+
+            // 修改成你的真实卸载点坐标
+
+            targetLat = 43.012730;
+
+            targetLng =101.228976;
+
+            pointName =
+                "1号卸载点";
+
+        }
+
+
+        else {
+
+            resultBox.innerHTML =
+                "二维码不存在：" +
+                qrCode;
+
+            return;
+
+        }
+
+
+
+        const distance =
+            getDistance(
+
+                currentLat,
+
+                currentLng,
+
+                targetLat,
+
+                targetLng
+
+            );
+
+
+        if (distance <= radius) {
+
+            resultBox.innerHTML =
+
+                "位置验证成功！" +
+
+                "<br><br>" +
+
+                "点位：" +
+                pointName +
+
+                "<br>" +
+
+                "二维码：" +
+                qrCode +
+
+                "<br>" +
+
+                "当前距离：" +
+                distance.toFixed(1) +
+                " 米" +
+
+                "<br>" +
+
+                "允许范围：" +
+                radius +
+                " 米" +
+
+                "<br><br>" +
+
+                "✅ 允许计数";
+
+        }
+
+
+        else {
+
+            resultBox.innerHTML =
+
+                "位置验证失败！" +
+
+                "<br><br>" +
+
+                "点位：" +
+                pointName +
+
+                "<br>" +
+
+                "当前距离：" +
+                distance.toFixed(1) +
+                " 米" +
+
+                "<br>" +
+
+                "允许范围：" +
+                radius +
+                " 米" +
+
+                "<br><br>" +
+
+                "❌ 超出范围，禁止计数";
+
+        }
+
+    }
+
+</script>
+
+</body>
+
+</html>
