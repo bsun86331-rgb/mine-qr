@@ -1,150 +1,66 @@
 /*
 =========================================
-矿山运输管理系统 V1.0
+矿山运输管理系统 V1.2
 主程序
+Supabase 联网电子围栏版
 =========================================
 */
 
-
 const App = {
 
-    today:
-        null,
+    today: null,
 
-    transportState:
-        "WAIT_LOAD",
+    transportState: "WAIT_LOAD",
 
-    tripCount:
-        0,
+    tripCount: 0,
 
-    currentLoad:
-        null,
+    currentLoad: null,
 
-    gps:
-        null,
+    gps: null,
+
+    supabaseReady: false,
 
 
-    init() {
+    /*
+    =========================================
+    系统初始化
+    =========================================
+    */
 
-        /*
-        初始化当天数据
-        */
+    async init() {
 
         this.today =
-            StorageManager
-                .initializeDay();
-
+            StorageManager.initializeDay();
 
         this.transportState =
-            StorageManager
-                .getTransportState();
-
+            StorageManager.getTransportState();
 
         this.tripCount =
-            StorageManager
-                .getTripCount();
-
+            StorageManager.getTripCount();
 
         this.currentLoad =
-            StorageManager
-                .getCurrentLoad();
+            StorageManager.getCurrentLoad();
 
-
-        /*
-        初始化页面
-        */
 
         document
-            .getElementById(
-                "todayDate"
-            )
+            .getElementById("todayDate")
             .textContent =
             this.today;
 
 
         document
-            .getElementById(
-                "driver"
-            )
+            .getElementById("driver")
             .value =
-            StorageManager
-                .getDriver();
+            StorageManager.getDriver();
 
 
         document
-            .getElementById(
-                "truck"
-            )
+            .getElementById("truck")
             .value =
-            StorageManager
-                .getTruck();
+            StorageManager.getTruck();
 
 
-        /*
-        输入自动保存
-        */
-
-        document
-            .getElementById(
-                "driver"
-            )
-            .addEventListener(
-                "input",
-                () => {
-
-                    StorageManager
-                        .setDriver(
-                            this.getDriver()
-                        );
-
-                }
-            );
-
-
-        document
-            .getElementById(
-                "truck"
-            )
-            .addEventListener(
-                "input",
-                () => {
-
-                    StorageManager
-                        .setTruck(
-                            this.getTruck()
-                        );
-
-                }
-            );
-
-
-        /*
-        按钮
-        */
-
-        document
-            .getElementById(
-                "loadButton"
-            )
-            .addEventListener(
-                "click",
-                () => {
-                    this.confirmLoad();
-                }
-            );
-
-
-        document
-            .getElementById(
-                "unloadButton"
-            )
-            .addEventListener(
-                "click",
-                () => {
-                    this.confirmUnload();
-                }
-            );
-
+        this.bindEvents();
 
         this.updateCount();
 
@@ -155,48 +71,74 @@ const App = {
         this.updateButtons();
 
 
+        /*
+        初始化 Supabase
+        */
+
         this.showSystemMessage(
-            "系统启动成功，正在获取GPS位置..."
+            "正在连接在线数据库..."
         );
 
 
-        /*
-        启动持续定位
-        */
+        try {
 
-        GPSManager.start(
-
-            gpsState => {
-
-                this.handleGps(
-                    gpsState
-                );
-
-            },
+            this.supabaseReady =
+                SupabaseManager.init();
 
 
-            errorMessage => {
+            if (this.supabaseReady) {
 
-                document
-                    .getElementById(
-                        "gpsState"
-                    )
-                    .textContent =
-                    "● GPS异常";
+                const online =
+                    await AreaManager.initialize();
 
+
+                if (online) {
+
+                    this.showSystemMessage(
+                        "在线电子围栏同步成功，正在启动GPS..."
+                    );
+
+                } else {
+
+                    this.showSystemMessage(
+                        "在线电子围栏读取失败，正在使用本地缓存"
+                    );
+
+                }
+
+            } else {
+
+                AreaManager.loadCache();
 
                 this.showSystemMessage(
-                    errorMessage
+                    "Supabase尚未配置，当前使用本地缓存"
                 );
 
             }
 
-        );
+        } catch (error) {
+
+            console.error(
+                "Supabase初始化失败：",
+                error
+            );
+
+            AreaManager.loadCache();
+
+            this.showSystemMessage(
+                "数据库连接失败，当前使用本地缓存"
+            );
+
+        }
+
+
+        this.renderSavedAreas();
+
+        this.startGps();
 
 
         /*
-        每分钟检查一次日期
-        防止网页跨过00:00后没有刷新
+        每分钟检查是否跨天
         */
 
         setInterval(
@@ -211,12 +153,156 @@ const App = {
     },
 
 
+    /*
+    =========================================
+    绑定按钮和输入事件
+    =========================================
+    */
+
+    bindEvents() {
+
+        document
+            .getElementById("driver")
+            .addEventListener(
+                "input",
+                () => {
+
+                    StorageManager.setDriver(
+                        this.getDriver()
+                    );
+
+                }
+            );
+
+
+        document
+            .getElementById("truck")
+            .addEventListener(
+                "input",
+                () => {
+
+                    StorageManager.setTruck(
+                        this.getTruck()
+                    );
+
+                }
+            );
+
+
+        document
+            .getElementById("loadButton")
+            .addEventListener(
+                "click",
+                () => {
+
+                    this.confirmLoad();
+
+                }
+            );
+
+
+        document
+            .getElementById("unloadButton")
+            .addEventListener(
+                "click",
+                () => {
+
+                    this.confirmUnload();
+
+                }
+            );
+
+
+        document
+            .getElementById("setLoadAreaButton")
+            .addEventListener(
+                "click",
+                async () => {
+
+                    await this.setCurrentAsLoadArea();
+
+                }
+            );
+
+
+        document
+            .getElementById("setUnloadAreaButton")
+            .addEventListener(
+                "click",
+                async () => {
+
+                    await this.setCurrentAsUnloadArea();
+
+                }
+            );
+
+
+        document
+            .getElementById("clearAreasButton")
+            .addEventListener(
+                "click",
+                async () => {
+
+                    await this.reloadOnlineAreas();
+
+                }
+            );
+
+    },
+
+
+    /*
+    =========================================
+    启动 GPS
+    =========================================
+    */
+
+    startGps() {
+
+        this.showSystemMessage(
+            "正在获取GPS位置..."
+        );
+
+
+        GPSManager.start(
+
+            gpsState => {
+
+                this.handleGps(
+                    gpsState
+                );
+
+            },
+
+            errorMessage => {
+
+                document
+                    .getElementById("gpsState")
+                    .textContent =
+                    "● GPS异常";
+
+
+                this.showSystemMessage(
+                    errorMessage
+                );
+
+            }
+
+        );
+
+    },
+
+
+    /*
+    =========================================
+    获取司机/车辆
+    =========================================
+    */
+
     getDriver() {
 
         return document
-            .getElementById(
-                "driver"
-            )
+            .getElementById("driver")
             .value
             .trim();
 
@@ -226,20 +312,23 @@ const App = {
     getTruck() {
 
         return document
-            .getElementById(
-                "truck"
-            )
+            .getElementById("truck")
             .value
             .trim();
 
     },
 
 
+    /*
+    =========================================
+    每日自动清零
+    =========================================
+    */
+
     checkNewDay() {
 
         const newToday =
-            StorageManager
-                .getToday();
+            StorageManager.getToday();
 
 
         if (
@@ -253,28 +342,20 @@ const App = {
 
 
         this.today =
-            StorageManager
-                .initializeDay();
-
+            StorageManager.initializeDay();
 
         this.transportState =
-            StorageManager
-                .getTransportState();
-
+            StorageManager.getTransportState();
 
         this.tripCount =
-            StorageManager
-                .getTripCount();
-
+            StorageManager.getTripCount();
 
         this.currentLoad =
-            null;
+            StorageManager.getCurrentLoad();
 
 
         document
-            .getElementById(
-                "todayDate"
-            )
+            .getElementById("todayDate")
             .textContent =
             this.today;
 
@@ -295,56 +376,46 @@ const App = {
     },
 
 
+    /*
+    =========================================
+    GPS位置更新
+    =========================================
+    */
+
     handleGps(gps) {
 
         this.gps =
             gps;
 
 
-        /*
-        GPS显示
-        */
-
         document
-            .getElementById(
-                "gpsState"
-            )
+            .getElementById("gpsState")
             .textContent =
             "● GPS定位正常";
 
 
         document
-            .getElementById(
-                "latitude"
-            )
+            .getElementById("latitude")
             .textContent =
-            gps.latitude
-                .toFixed(6);
+            gps.latitude.toFixed(6);
 
 
         document
-            .getElementById(
-                "longitude"
-            )
+            .getElementById("longitude")
             .textContent =
-            gps.longitude
-                .toFixed(6);
+            gps.longitude.toFixed(6);
 
 
         document
-            .getElementById(
-                "accuracy"
-            )
+            .getElementById("accuracy")
             .textContent =
-            gps.accuracy
-                .toFixed(1) +
+            gps.accuracy.toFixed(1)
+            +
             " 米";
 
 
         document
-            .getElementById(
-                "gpsTime"
-            )
+            .getElementById("gpsTime")
             .textContent =
             this.formatTime(
                 new Date(
@@ -353,25 +424,12 @@ const App = {
             );
 
 
-        /*
-        当前区域
-        */
-
         this.updateArea(
             gps
         );
 
-
-        /*
-        按钮状态
-        */
-
         this.updateButtons();
 
-
-        /*
-        天气
-        */
 
         this.updateWeather(
             gps.latitude,
@@ -381,20 +439,22 @@ const App = {
     },
 
 
+    /*
+    =========================================
+    当前区域显示
+    =========================================
+    */
+
     updateArea(gps) {
 
         const areaName =
             document
-                .getElementById(
-                    "areaName"
-                );
+                .getElementById("areaName");
 
 
         const areaDistance =
             document
-                .getElementById(
-                    "areaDistance"
-                );
+                .getElementById("areaDistance");
 
 
         if (
@@ -402,41 +462,32 @@ const App = {
         ) {
 
             areaName.textContent =
-                MineAreas
-                    .load
-                    .name;
+                MineAreas.load.name;
 
 
             areaDistance.textContent =
-
-                "距离装载区中心 " +
-
-                gps.loadDistance
-                    .toFixed(1) +
-
+                "距离装载区中心 "
+                +
+                gps.loadDistance.toFixed(1)
+                +
                 " 米";
 
         }
 
 
         else if (
-            gps.area ===
-            "UNLOAD"
+            gps.area === "UNLOAD"
         ) {
 
             areaName.textContent =
-                MineAreas
-                    .unload
-                    .name;
+                MineAreas.unload.name;
 
 
             areaDistance.textContent =
-
-                "距离卸载区中心 " +
-
-                gps.unloadDistance
-                    .toFixed(1) +
-
+                "距离卸载区中心 "
+                +
+                gps.unloadDistance.toFixed(1)
+                +
                 " 米";
 
         }
@@ -449,17 +500,14 @@ const App = {
 
 
             areaDistance.textContent =
-
-                "距装载区 " +
-
-                gps.loadDistance
-                    .toFixed(0) +
-
-                " 米 ｜ 距卸载区 " +
-
-                gps.unloadDistance
-                    .toFixed(0) +
-
+                "距装载区 "
+                +
+                gps.loadDistance.toFixed(0)
+                +
+                " 米 ｜ 距卸载区 "
+                +
+                gps.unloadDistance.toFixed(0)
+                +
                 " 米";
 
         }
@@ -467,27 +515,27 @@ const App = {
     },
 
 
+    /*
+    =========================================
+    按钮控制
+    =========================================
+    */
+
     updateButtons() {
 
         const loadButton =
             document
-                .getElementById(
-                    "loadButton"
-                );
+                .getElementById("loadButton");
 
 
         const unloadButton =
             document
-                .getElementById(
-                    "unloadButton"
-                );
+                .getElementById("unloadButton");
 
 
         const hint =
             document
-                .getElementById(
-                    "operationHint"
-                );
+                .getElementById("operationHint");
 
 
         if (!this.gps) {
@@ -505,10 +553,6 @@ const App = {
 
         }
 
-
-        /*
-        等待装车
-        */
 
         if (
             this.transportState ===
@@ -531,10 +575,7 @@ const App = {
                 hint.textContent =
                     "已进入装载区，可以确认已装车";
 
-            }
-
-
-            else {
+            } else {
 
                 loadButton.disabled =
                     true;
@@ -545,14 +586,7 @@ const App = {
 
             }
 
-        }
-
-
-        /*
-        等待卸车
-        */
-
-        else {
+        } else {
 
             loadButton.disabled =
                 true;
@@ -570,10 +604,7 @@ const App = {
                 hint.textContent =
                     "已进入卸载区，可以确认已卸车";
 
-            }
-
-
-            else {
+            } else {
 
                 unloadButton.disabled =
                     true;
@@ -588,6 +619,12 @@ const App = {
 
     },
 
+
+    /*
+    =========================================
+    确认装车
+    =========================================
+    */
 
     confirmLoad() {
 
@@ -657,27 +694,23 @@ const App = {
                 this.gps.accuracy,
 
             area:
-                MineAreas
-                    .load
-                    .name
+                MineAreas.load.name
 
         };
 
 
-        StorageManager
-            .setCurrentLoad(
-                this.currentLoad
-            );
+        StorageManager.setCurrentLoad(
+            this.currentLoad
+        );
 
 
         this.transportState =
             "WAIT_UNLOAD";
 
 
-        StorageManager
-            .setTransportState(
-                this.transportState
-            );
+        StorageManager.setTransportState(
+            this.transportState
+        );
 
 
         this.updateTransportStatus();
@@ -686,17 +719,21 @@ const App = {
 
 
         this.showSystemMessage(
-
-            "装车确认成功：" +
-
-            this.formatTime(now) +
-
+            "装车确认成功："
+            +
+            this.formatTime(now)
+            +
             "，请前往卸载区"
-
         );
 
     },
 
+
+    /*
+    =========================================
+    确认卸车
+    =========================================
+    */
 
     confirmUnload() {
 
@@ -757,7 +794,9 @@ const App = {
                     (
                         unloadDate -
                         loadDate
-                    ) / 1000
+                    )
+                    /
+                    1000
                 )
             );
 
@@ -786,24 +825,19 @@ const App = {
                 this.currentLoad.area,
 
             unloadArea:
-                MineAreas
-                    .unload
-                    .name,
+                MineAreas.unload.name,
 
             loadTime:
                 this.currentLoad.time,
 
             unloadTime:
-                unloadDate
-                    .toISOString(),
+                unloadDate.toISOString(),
 
             loadLatitude:
-                this.currentLoad
-                    .latitude,
+                this.currentLoad.latitude,
 
             loadLongitude:
-                this.currentLoad
-                    .longitude,
+                this.currentLoad.longitude,
 
             unloadLatitude:
                 this.gps.latitude,
@@ -812,8 +846,7 @@ const App = {
                 this.gps.longitude,
 
             loadAccuracy:
-                this.currentLoad
-                    .accuracy,
+                this.currentLoad.accuracy,
 
             unloadAccuracy:
                 this.gps.accuracy,
@@ -824,20 +857,17 @@ const App = {
         };
 
 
-        StorageManager
-            .setTripCount(
-                this.tripCount
-            );
+        StorageManager.setTripCount(
+            this.tripCount
+        );
 
 
-        StorageManager
-            .addRecord(
-                record
-            );
+        StorageManager.addRecord(
+            record
+        );
 
 
-        StorageManager
-            .clearCurrentLoad();
+        StorageManager.clearCurrentLoad();
 
 
         this.currentLoad =
@@ -848,10 +878,9 @@ const App = {
             "WAIT_LOAD";
 
 
-        StorageManager
-            .setTransportState(
-                this.transportState
-            );
+        StorageManager.setTransportState(
+            this.transportState
+        );
 
 
         this.updateCount();
@@ -868,33 +897,589 @@ const App = {
 
 
         this.showSystemMessage(
-
-            "第 " +
-
-            this.tripCount +
-
-            " 趟完成，耗时 " +
-
+            "第 "
+            +
+            this.tripCount
+            +
+            " 趟完成，耗时 "
+            +
             this.formatDuration(
                 durationSeconds
             )
-
         );
 
     },
 
 
+    /*
+    =========================================
+    异步设置在线装载区
+    =========================================
+    */
+
+    async setCurrentAsLoadArea() {
+
+        if (!this.gps) {
+
+            this.showSystemMessage(
+                "GPS尚未定位，不能设置装载区"
+            );
+
+            return;
+
+        }
+
+
+        if (!this.supabaseReady) {
+
+            this.showSystemMessage(
+                "Supabase尚未连接，不能保存在线装载区"
+            );
+
+            return;
+
+        }
+
+
+        if (
+            this.gps.accuracy >
+            50
+        ) {
+
+            const confirmed =
+                confirm(
+                    "当前GPS定位精度为 "
+                    +
+                    this.gps.accuracy.toFixed(1)
+                    +
+                    " 米，误差较大。\n\n仍然保存装载区吗？"
+                );
+
+
+            if (!confirmed) {
+
+                return;
+
+            }
+
+        }
+
+
+        const radius =
+            Number(
+                document
+                    .getElementById("loadRadius")
+                    .value
+            );
+
+
+        if (
+            !radius ||
+            radius < 10 ||
+            radius > 500
+        ) {
+
+            this.showSystemMessage(
+                "装载区半径请输入10到500米"
+            );
+
+            return;
+
+        }
+
+
+        const button =
+            document
+                .getElementById(
+                    "setLoadAreaButton"
+                );
+
+
+        const originalText =
+            button.textContent;
+
+
+        button.disabled =
+            true;
+
+
+        button.textContent =
+            "正在保存装载区...";
+
+
+        this.showSystemMessage(
+            "正在保存装载区到Supabase..."
+        );
+
+
+        try {
+
+            await AreaManager
+                .saveLoadArea(
+
+                    this.gps.latitude,
+
+                    this.gps.longitude,
+
+                    radius
+
+                );
+
+
+            /*
+            再从服务器读取一次
+            确保本机拿到数据库最终数据
+            */
+
+            await AreaManager.refresh();
+
+
+            GPSManager.refreshAreas();
+
+
+            this.gps =
+                GPSManager.getState();
+
+
+            this.renderSavedAreas();
+
+
+            if (
+                this.gps &&
+                this.gps.latitude !== null
+            ) {
+
+                this.updateArea(
+                    this.gps
+                );
+
+            }
+
+
+            this.updateButtons();
+
+
+            this.showSystemMessage(
+                "装载区保存成功，已写入Supabase。其他司机刷新网页后即可使用。"
+            );
+
+        }
+
+
+        catch (error) {
+
+            console.error(
+                "保存装载区失败：",
+                error
+            );
+
+
+            this.showSystemMessage(
+                "装载区保存失败，请检查网络、Publishable Key、数据库表和RLS权限"
+            );
+
+        }
+
+
+        finally {
+
+            button.disabled =
+                false;
+
+
+            button.textContent =
+                originalText;
+
+        }
+
+    },
+
+
+    /*
+    =========================================
+    异步设置在线卸载区
+    =========================================
+    */
+
+    async setCurrentAsUnloadArea() {
+
+        if (!this.gps) {
+
+            this.showSystemMessage(
+                "GPS尚未定位，不能设置卸载区"
+            );
+
+            return;
+
+        }
+
+
+        if (!this.supabaseReady) {
+
+            this.showSystemMessage(
+                "Supabase尚未连接，不能保存在线卸载区"
+            );
+
+            return;
+
+        }
+
+
+        if (
+            this.gps.accuracy >
+            50
+        ) {
+
+            const confirmed =
+                confirm(
+                    "当前GPS定位精度为 "
+                    +
+                    this.gps.accuracy.toFixed(1)
+                    +
+                    " 米，误差较大。\n\n仍然保存卸载区吗？"
+                );
+
+
+            if (!confirmed) {
+
+                return;
+
+            }
+
+        }
+
+
+        const radius =
+            Number(
+                document
+                    .getElementById("unloadRadius")
+                    .value
+            );
+
+
+        if (
+            !radius ||
+            radius < 10 ||
+            radius > 500
+        ) {
+
+            this.showSystemMessage(
+                "卸载区半径请输入10到500米"
+            );
+
+            return;
+
+        }
+
+
+        const button =
+            document
+                .getElementById(
+                    "setUnloadAreaButton"
+                );
+
+
+        const originalText =
+            button.textContent;
+
+
+        button.disabled =
+            true;
+
+
+        button.textContent =
+            "正在保存卸载区...";
+
+
+        this.showSystemMessage(
+            "正在保存卸载区到Supabase..."
+        );
+
+
+        try {
+
+            await AreaManager
+                .saveUnloadArea(
+
+                    this.gps.latitude,
+
+                    this.gps.longitude,
+
+                    radius
+
+                );
+
+
+            await AreaManager.refresh();
+
+
+            GPSManager.refreshAreas();
+
+
+            this.gps =
+                GPSManager.getState();
+
+
+            this.renderSavedAreas();
+
+
+            if (
+                this.gps &&
+                this.gps.latitude !== null
+            ) {
+
+                this.updateArea(
+                    this.gps
+                );
+
+            }
+
+
+            this.updateButtons();
+
+
+            this.showSystemMessage(
+                "卸载区保存成功，已写入Supabase。其他司机刷新网页后即可使用。"
+            );
+
+        }
+
+
+        catch (error) {
+
+            console.error(
+                "保存卸载区失败：",
+                error
+            );
+
+
+            this.showSystemMessage(
+                "卸载区保存失败，请检查网络、Publishable Key、数据库表和RLS权限"
+            );
+
+        }
+
+
+        finally {
+
+            button.disabled =
+                false;
+
+
+            button.textContent =
+                originalText;
+
+        }
+
+    },
+
+
+    /*
+    =========================================
+    异步重新同步在线区域
+    =========================================
+    */
+
+    async reloadOnlineAreas() {
+
+        if (!this.supabaseReady) {
+
+            this.showSystemMessage(
+                "Supabase尚未连接"
+            );
+
+            return;
+
+        }
+
+
+        const button =
+            document
+                .getElementById(
+                    "clearAreasButton"
+                );
+
+
+        const originalText =
+            button.textContent;
+
+
+        button.disabled =
+            true;
+
+
+        button.textContent =
+            "正在同步...";
+
+
+        this.showSystemMessage(
+            "正在从Supabase读取最新电子围栏..."
+        );
+
+
+        try {
+
+            await AreaManager.refresh();
+
+
+            GPSManager.refreshAreas();
+
+
+            this.gps =
+                GPSManager.getState();
+
+
+            this.renderSavedAreas();
+
+
+            if (
+                this.gps &&
+                this.gps.latitude !== null
+            ) {
+
+                this.updateArea(
+                    this.gps
+                );
+
+            }
+
+
+            this.updateButtons();
+
+
+            this.showSystemMessage(
+                "在线电子围栏同步成功"
+            );
+
+        }
+
+
+        catch (error) {
+
+            console.error(
+                "电子围栏同步失败：",
+                error
+            );
+
+
+            this.showSystemMessage(
+                "在线电子围栏同步失败，请检查网络或Supabase配置"
+            );
+
+        }
+
+
+        finally {
+
+            button.disabled =
+                false;
+
+
+            button.textContent =
+                originalText;
+
+        }
+
+    },
+
+
+    /*
+    =========================================
+    显示当前电子围栏
+    =========================================
+    */
+
+    renderSavedAreas() {
+
+        const load =
+            AreaManager.getLoadArea();
+
+
+        const unload =
+            AreaManager.getUnloadArea();
+
+
+        document
+            .getElementById("loadRadius")
+            .value =
+            load.radius;
+
+
+        document
+            .getElementById("unloadRadius")
+            .value =
+            unload.radius;
+
+
+        document
+            .getElementById("savedLoadArea")
+            .innerHTML =
+
+            "装载区中心："
+            +
+            Number(
+                load.latitude
+            ).toFixed(6)
+            +
+            ", "
+            +
+            Number(
+                load.longitude
+            ).toFixed(6)
+            +
+            "<br>半径："
+            +
+            load.radius
+            +
+            " 米";
+
+
+        document
+            .getElementById("savedUnloadArea")
+            .innerHTML =
+
+            "卸载区中心："
+            +
+            Number(
+                unload.latitude
+            ).toFixed(6)
+            +
+            ", "
+            +
+            Number(
+                unload.longitude
+            ).toFixed(6)
+            +
+            "<br>半径："
+            +
+            unload.radius
+            +
+            " 米";
+
+    },
+
+
+    /*
+    =========================================
+    今日趟数
+    =========================================
+    */
+
     updateCount() {
 
         document
-            .getElementById(
-                "tripCount"
-            )
+            .getElementById("tripCount")
             .textContent =
             this.tripCount;
 
     },
 
+
+    /*
+    =========================================
+    当前运输状态
+    =========================================
+    */
 
     updateTransportStatus() {
 
@@ -924,10 +1509,7 @@ const App = {
             loadTimeStatus.textContent =
                 "进入装载区域后确认装车";
 
-        }
-
-
-        else {
+        } else {
 
             status.textContent =
                 "已装车 · 运输中";
@@ -936,12 +1518,10 @@ const App = {
             if (this.currentLoad) {
 
                 loadTimeStatus.textContent =
-
-                    "装车时间：" +
-
+                    "装车时间："
+                    +
                     this.formatDateTime(
-                        this.currentLoad
-                            .time
+                        this.currentLoad.time
                     );
 
             }
@@ -951,11 +1531,16 @@ const App = {
     },
 
 
+    /*
+    =========================================
+    今日运输记录
+    =========================================
+    */
+
     renderRecords() {
 
         const records =
-            StorageManager
-                .getRecords();
+            StorageManager.getRecords();
 
 
         const box =
@@ -970,29 +1555,31 @@ const App = {
                 "recordCount"
             )
             .textContent =
-
-            records.length +
+            records.length
+            +
             "条";
 
 
         if (
-            records.length === 0
+            records.length ===
+            0
         ) {
 
             box.innerHTML =
-
-                '<div class="empty-record">' +
-
-                '今日暂无运输记录' +
-
+                '<div class="empty-record">'
+                +
+                '今日暂无运输记录'
+                +
                 '</div>';
+
 
             return;
 
         }
 
 
-        let html = "";
+        let html =
+            "";
 
 
         records.forEach(
@@ -1004,9 +1591,7 @@ const App = {
                     <div class="trip-record">
 
                         <div class="trip-record-title">
-
                             第 ${record.tripNo} 趟
-
                         </div>
 
                         <div class="trip-record-info">
@@ -1039,7 +1624,6 @@ const App = {
                         </div>
 
                     </div>
-
                 `;
 
             }
@@ -1053,7 +1637,15 @@ const App = {
     },
 
 
-    showLatestTrip(record) {
+    /*
+    =========================================
+    最新一趟
+    =========================================
+    */
+
+    showLatestTrip(
+        record
+    ) {
 
         const card =
             document
@@ -1069,44 +1661,56 @@ const App = {
                 );
 
 
-        card.classList.remove(
-            "hidden"
-        );
+        card
+            .classList
+            .remove(
+                "hidden"
+            );
 
 
         box.innerHTML =
-
-            "<b>第 " +
-            record.tripNo +
-            " 趟完成</b>" +
-
-            "<br>" +
-
-            "装车：" +
+            "<b>第 "
+            +
+            record.tripNo
+            +
+            " 趟完成</b>"
+            +
+            "<br>"
+            +
+            "装车："
+            +
             this.formatTime(
                 new Date(
                     record.loadTime
                 )
-            ) +
-
-            "<br>" +
-
-            "卸车：" +
+            )
+            +
+            "<br>"
+            +
+            "卸车："
+            +
             this.formatTime(
                 new Date(
                     record.unloadTime
                 )
-            ) +
-
-            "<br>" +
-
-            "耗时：" +
+            )
+            +
+            "<br>"
+            +
+            "耗时："
+            +
             this.formatDuration(
                 record.durationSeconds
             );
 
     },
 
+
+    /*
+    =========================================
+    天气
+    =========================================
+    */
 
     async updateWeather(
         latitude,
@@ -1124,7 +1728,9 @@ const App = {
 
 
             if (!weather) {
+
                 return;
+
             }
 
 
@@ -1161,8 +1767,8 @@ const App = {
                     "temperature"
                 )
                 .textContent =
-
-                weather.temperature +
+                weather.temperature
+                +
                 "℃";
 
 
@@ -1171,8 +1777,8 @@ const App = {
                     "apparentTemperature"
                 )
                 .textContent =
-
-                weather.apparentTemperature +
+                weather.apparentTemperature
+                +
                 "℃";
 
 
@@ -1181,8 +1787,8 @@ const App = {
                     "humidity"
                 )
                 .textContent =
-
-                weather.humidity +
+                weather.humidity
+                +
                 "%";
 
 
@@ -1191,8 +1797,8 @@ const App = {
                     "windSpeed"
                 )
                 .textContent =
-
-                weather.windSpeed +
+                weather.windSpeed
+                +
                 " km/h";
 
 
@@ -1201,8 +1807,8 @@ const App = {
                     "precipitation"
                 )
                 .textContent =
-
-                weather.precipitation +
+                weather.precipitation
+                +
                 " mm";
 
 
@@ -1211,14 +1817,20 @@ const App = {
                     "weatherUpdateTime"
                 )
                 .textContent =
-
-                "天气更新时间：" +
+                "天气更新时间："
+                +
                 weather.time;
 
         }
 
 
-        catch {
+        catch (error) {
+
+            console.error(
+                "天气更新失败：",
+                error
+            );
+
 
             document
                 .getElementById(
@@ -1232,7 +1844,15 @@ const App = {
     },
 
 
-    showSystemMessage(message) {
+    /*
+    =========================================
+    系统提示
+    =========================================
+    */
+
+    showSystemMessage(
+        message
+    ) {
 
         document
             .getElementById(
@@ -1244,60 +1864,77 @@ const App = {
     },
 
 
-    formatTime(date) {
+    /*
+    =========================================
+    时间格式
+    =========================================
+    */
+
+    formatTime(
+        date
+    ) {
 
         return (
-
             String(
                 date.getHours()
-            ).padStart(2, "0")
-
+            ).padStart(
+                2,
+                "0"
+            )
             +
-
             ":"
-
             +
-
             String(
                 date.getMinutes()
-            ).padStart(2, "0")
-
+            ).padStart(
+                2,
+                "0"
+            )
             +
-
             ":"
-
             +
-
             String(
                 date.getSeconds()
-            ).padStart(2, "0")
-
+            ).padStart(
+                2,
+                "0"
+            )
         );
 
     },
 
 
-    formatDateTime(value) {
-
-        const date =
-            new Date(value);
-
+    formatDateTime(
+        value
+    ) {
 
         return this.formatTime(
-            date
+            new Date(
+                value
+            )
         );
 
     },
 
 
-    formatDuration(seconds) {
+    /*
+    =========================================
+    耗时
+    =========================================
+    */
+
+    formatDuration(
+        seconds
+    ) {
 
         if (
-            seconds < 60
+            seconds <
+            60
         ) {
 
             return (
-                seconds +
+                seconds
+                +
                 " 秒"
             );
 
@@ -1306,26 +1943,29 @@ const App = {
 
         const minutes =
             Math.floor(
-                seconds / 60
+                seconds /
+                60
             );
 
 
         const remainSeconds =
-            seconds % 60;
+            seconds %
+            60;
 
 
         if (
-            minutes < 60
+            minutes <
+            60
         ) {
 
             return (
-
-                minutes +
-                " 分 " +
-
-                remainSeconds +
+                minutes
+                +
+                " 分 "
+                +
+                remainSeconds
+                +
                 " 秒"
-
             );
 
         }
@@ -1333,37 +1973,49 @@ const App = {
 
         const hours =
             Math.floor(
-                minutes / 60
+                minutes /
+                60
             );
 
 
         const remainMinutes =
-            minutes % 60;
+            minutes %
+            60;
 
 
         return (
-
-            hours +
-            " 小时 " +
-
-            remainMinutes +
+            hours
+            +
+            " 小时 "
+            +
+            remainMinutes
+            +
             " 分钟"
-
         );
 
     },
 
 
-    escapeHtml(text) {
+    /*
+    =========================================
+    HTML安全处理
+    =========================================
+    */
+
+    escapeHtml(
+        text
+    ) {
 
         const div =
-            document.createElement(
-                "div"
-            );
+            document
+                .createElement(
+                    "div"
+                );
 
 
         div.textContent =
-            text || "";
+            text ||
+            "";
 
 
         return div.innerHTML;
@@ -1380,14 +2032,13 @@ const App = {
 =========================================
 */
 
-
 document.addEventListener(
 
     "DOMContentLoaded",
 
-    () => {
+    async () => {
 
-        App.init();
+        await App.init();
 
     }
 

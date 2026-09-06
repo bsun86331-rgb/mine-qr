@@ -1,52 +1,432 @@
 /*
 =========================================
-矿山运输管理系统 V1.0
-GPS + 电子围栏
+矿山运输管理系统 V1.2
+GPS + Supabase统一电子围栏
 =========================================
 */
 
 
-/*
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-这里必须改成你矿山的真实坐标。
-
-latitude = 纬度
-longitude = 经度
-radius = 电子围栏半径（米）
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-*/
-
-
-const MineAreas = {
+const DEFAULT_AREAS = {
 
     load: {
 
-        id: "LOAD_01",
+        id:
+            "LOAD_01",
 
-        name: "1号装载区",
+        name:
+            "1号装载区",
 
-        latitude: 42.123456,
+        latitude:
+            42.123456,
 
-        longitude: 106.123456,
+        longitude:
+            106.123456,
 
-        radius: 50
+        radius:
+            50
 
     },
 
 
     unload: {
 
-        id: "UNLOAD_01",
+        id:
+            "UNLOAD_01",
 
-        name: "1号卸载区",
+        name:
+            "1号卸载区",
 
-        latitude: 42.124000,
+        latitude:
+            42.124000,
 
-        longitude: 106.124000,
+        longitude:
+            106.124000,
 
-        radius: 50
+        radius:
+            50
+
+    }
+
+};
+
+
+
+const AREA_CACHE_KEY =
+    "mineAreasCache";
+
+
+let MineAreas = {
+
+    load:
+        {
+            ...DEFAULT_AREAS.load
+        },
+
+    unload:
+        {
+            ...DEFAULT_AREAS.unload
+        }
+
+};
+
+
+
+const AreaManager = {
+
+    /*
+    =========================================
+    初始化区域
+    =========================================
+    */
+
+    async initialize() {
+
+        /*
+        先读取本地缓存
+        避免没网时完全不能工作
+        */
+
+        this.loadCache();
+
+
+        /*
+        然后从Supabase读取最新区域
+        */
+
+        try {
+
+            const areas =
+                await SupabaseManager
+                    .getAreas();
+
+
+            this.applyServerAreas(
+                areas
+            );
+
+
+            this.saveCache();
+
+
+            return true;
+
+        }
+
+
+        catch (error) {
+
+            console.error(
+                "读取在线电子围栏失败：",
+                error
+            );
+
+
+            return false;
+
+        }
+
+    },
+
+
+    /*
+    =========================================
+    服务器数据应用到 MineAreas
+    =========================================
+    */
+
+    applyServerAreas(areas) {
+
+        if (!Array.isArray(areas)) {
+
+            return;
+
+        }
+
+
+        const load =
+            areas.find(
+                item =>
+                    item.id ===
+                    "LOAD_01"
+            );
+
+
+        const unload =
+            areas.find(
+                item =>
+                    item.id ===
+                    "UNLOAD_01"
+            );
+
+
+        if (load) {
+
+            MineAreas.load = {
+
+                id:
+                    load.id,
+
+                name:
+                    load.name,
+
+                latitude:
+                    Number(
+                        load.latitude
+                    ),
+
+                longitude:
+                    Number(
+                        load.longitude
+                    ),
+
+                radius:
+                    Number(
+                        load.radius
+                    )
+
+            };
+
+        }
+
+
+        if (unload) {
+
+            MineAreas.unload = {
+
+                id:
+                    unload.id,
+
+                name:
+                    unload.name,
+
+                latitude:
+                    Number(
+                        unload.latitude
+                    ),
+
+                longitude:
+                    Number(
+                        unload.longitude
+                    ),
+
+                radius:
+                    Number(
+                        unload.radius
+                    )
+
+            };
+
+        }
+
+    },
+
+
+    /*
+    =========================================
+    保存缓存
+    =========================================
+    */
+
+    saveCache() {
+
+        localStorage.setItem(
+
+            AREA_CACHE_KEY,
+
+            JSON.stringify(
+                MineAreas
+            )
+
+        );
+
+    },
+
+
+    /*
+    =========================================
+    读取缓存
+    =========================================
+    */
+
+    loadCache() {
+
+        const saved =
+            localStorage.getItem(
+                AREA_CACHE_KEY
+            );
+
+
+        if (!saved) {
+
+            return;
+
+        }
+
+
+        try {
+
+            const data =
+                JSON.parse(saved);
+
+
+            if (
+                data.load &&
+                data.unload
+            ) {
+
+                MineAreas = data;
+
+            }
+
+        }
+
+
+        catch (error) {
+
+            console.warn(
+                "电子围栏缓存读取失败",
+                error
+            );
+
+        }
+
+    },
+
+
+    /*
+    =========================================
+    在线设置装载区
+    =========================================
+    */
+
+    async saveLoadArea(
+        latitude,
+        longitude,
+        radius
+    ) {
+
+        await SupabaseManager
+            .saveLoadArea(
+
+                latitude,
+
+                longitude,
+
+                radius
+
+            );
+
+
+        MineAreas.load = {
+
+            id:
+                "LOAD_01",
+
+            name:
+                "1号装载区",
+
+            latitude:
+                latitude,
+
+            longitude:
+                longitude,
+
+            radius:
+                radius
+
+        };
+
+
+        this.saveCache();
+
+    },
+
+
+    /*
+    =========================================
+    在线设置卸载区
+    =========================================
+    */
+
+    async saveUnloadArea(
+        latitude,
+        longitude,
+        radius
+    ) {
+
+        await SupabaseManager
+            .saveUnloadArea(
+
+                latitude,
+
+                longitude,
+
+                radius
+
+            );
+
+
+        MineAreas.unload = {
+
+            id:
+                "UNLOAD_01",
+
+            name:
+                "1号卸载区",
+
+            latitude:
+                latitude,
+
+            longitude:
+                longitude,
+
+            radius:
+                radius
+
+        };
+
+
+        this.saveCache();
+
+    },
+
+
+    /*
+    =========================================
+    手动重新同步服务器
+    =========================================
+    */
+
+    async refresh() {
+
+        const areas =
+            await SupabaseManager
+                .getAreas();
+
+
+        this.applyServerAreas(
+            areas
+        );
+
+
+        this.saveCache();
+
+
+        return MineAreas;
+
+    },
+
+
+    getLoadArea() {
+
+        return MineAreas.load;
+
+    },
+
+
+    getUnloadArea() {
+
+        return MineAreas.unload;
 
     }
 
@@ -56,24 +436,35 @@ const MineAreas = {
 
 const GPSManager = {
 
-    latitude: null,
+    latitude:
+        null,
 
-    longitude: null,
+    longitude:
+        null,
 
-    accuracy: null,
+    accuracy:
+        null,
 
-    timestamp: null,
+    timestamp:
+        null,
 
-    currentArea: "UNKNOWN",
+    currentArea:
+        "UNKNOWN",
 
-    loadDistance: null,
+    loadDistance:
+        null,
 
-    unloadDistance: null,
+    unloadDistance:
+        null,
 
-    watchId: null,
+    watchId:
+        null,
 
 
-    start(callback, errorCallback) {
+    start(
+        callback,
+        errorCallback
+    ) {
 
         if (
             !navigator.geolocation
@@ -89,7 +480,9 @@ const GPSManager = {
 
 
         this.watchId =
-            navigator.geolocation
+
+            navigator
+                .geolocation
                 .watchPosition(
 
                     position => {
@@ -113,7 +506,8 @@ const GPSManager = {
 
 
                         this.timestamp =
-                            position.timestamp;
+                            position
+                                .timestamp;
 
 
                         this.detectArea();
@@ -136,7 +530,9 @@ const GPSManager = {
                             "GPS定位失败";
 
 
-                        if (error.code === 1) {
+                        if (
+                            error.code === 1
+                        ) {
 
                             message =
                                 "位置权限被拒绝，请允许浏览器访问位置";
@@ -164,7 +560,9 @@ const GPSManager = {
                         }
 
 
-                        if (errorCallback) {
+                        if (
+                            errorCallback
+                        ) {
 
                             errorCallback(
                                 message
@@ -176,112 +574,19 @@ const GPSManager = {
 
 
                     {
-                        enableHighAccuracy: true,
 
-                        maximumAge: 3000,
+                        enableHighAccuracy:
+                            true,
 
-                        timeout: 15000
+                        maximumAge:
+                            3000,
+
+                        timeout:
+                            15000
+
                     }
 
                 );
-
-    },
-
-
-    stop() {
-
-        if (
-            this.watchId !== null
-        ) {
-
-            navigator
-                .geolocation
-                .clearWatch(
-                    this.watchId
-                );
-
-            this.watchId =
-                null;
-
-        }
-
-    },
-
-
-    getDistance(
-        lat1,
-        lon1,
-        lat2,
-        lon2
-    ) {
-
-        const R =
-            6371000;
-
-
-        const radLat1 =
-            lat1 *
-            Math.PI /
-            180;
-
-
-        const radLat2 =
-            lat2 *
-            Math.PI /
-            180;
-
-
-        const deltaLat =
-            (lat2 - lat1) *
-            Math.PI /
-            180;
-
-
-        const deltaLon =
-            (lon2 - lon1) *
-            Math.PI /
-            180;
-
-
-        const a =
-
-            Math.sin(
-                deltaLat / 2
-            ) ** 2
-
-            +
-
-            Math.cos(
-                radLat1
-            )
-
-            *
-
-            Math.cos(
-                radLat2
-            )
-
-            *
-
-            Math.sin(
-                deltaLon / 2
-            ) ** 2;
-
-
-        const c =
-
-            2 *
-
-            Math.atan2(
-
-                Math.sqrt(a),
-
-                Math.sqrt(1 - a)
-
-            );
-
-
-        return R * c;
 
     },
 
@@ -308,9 +613,13 @@ const GPSManager = {
 
                 this.longitude,
 
-                MineAreas.load.latitude,
+                MineAreas
+                    .load
+                    .latitude,
 
-                MineAreas.load.longitude
+                MineAreas
+                    .load
+                    .longitude
 
             );
 
@@ -322,16 +631,25 @@ const GPSManager = {
 
                 this.longitude,
 
-                MineAreas.unload.latitude,
+                MineAreas
+                    .unload
+                    .latitude,
 
-                MineAreas.unload.longitude
+                MineAreas
+                    .unload
+                    .longitude
 
             );
 
 
         if (
+
             this.loadDistance <=
-            MineAreas.load.radius
+
+            MineAreas
+                .load
+                .radius
+
         ) {
 
             this.currentArea =
@@ -341,8 +659,13 @@ const GPSManager = {
 
 
         else if (
+
             this.unloadDistance <=
-            MineAreas.unload.radius
+
+            MineAreas
+                .unload
+                .radius
+
         ) {
 
             this.currentArea =
@@ -357,6 +680,91 @@ const GPSManager = {
                 "ROAD";
 
         }
+
+    },
+
+
+    refreshAreas() {
+
+        this.detectArea();
+
+    },
+
+
+    getDistance(
+        lat1,
+        lon1,
+        lat2,
+        lon2
+    ) {
+
+        const R =
+            6371000;
+
+
+        const p1 =
+            lat1 *
+            Math.PI /
+            180;
+
+
+        const p2 =
+            lat2 *
+            Math.PI /
+            180;
+
+
+        const dLat =
+            (
+                lat2 -
+                lat1
+            ) *
+            Math.PI /
+            180;
+
+
+        const dLon =
+            (
+                lon2 -
+                lon1
+            ) *
+            Math.PI /
+            180;
+
+
+        const a =
+
+            Math.sin(
+                dLat / 2
+            ) ** 2
+
+            +
+
+            Math.cos(p1) *
+
+            Math.cos(p2) *
+
+            Math.sin(
+                dLon / 2
+            ) ** 2;
+
+
+        const c =
+
+            2 *
+
+            Math.atan2(
+
+                Math.sqrt(a),
+
+                Math.sqrt(
+                    1 - a
+                )
+
+            );
+
+
+        return R * c;
 
     },
 

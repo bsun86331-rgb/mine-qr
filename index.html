@@ -464,7 +464,84 @@
         </div>
 
     </section>
+<section class="card admin-card">
 
+    <div class="section-title">
+        管理员设置
+    </div>
+
+    <div class="small-text">
+        请到现场对应区域后进行设置。
+        系统会把当前GPS位置保存为区域中心点。
+    </div>
+
+
+    <label for="loadRadius">
+        装载区半径（米）
+    </label>
+
+    <input
+        id="loadRadius"
+        type="number"
+        min="10"
+        max="500"
+        value="50"
+    >
+
+
+    <button
+        id="setLoadAreaButton"
+        class="admin-button"
+    >
+        设置当前位置为装载区
+    </button>
+
+
+    <div
+        id="savedLoadArea"
+        class="admin-info"
+    >
+        尚未保存装载区
+    </div>
+
+
+    <label for="unloadRadius">
+        卸载区半径（米）
+    </label>
+
+    <input
+        id="unloadRadius"
+        type="number"
+        min="10"
+        max="500"
+        value="50"
+    >
+
+
+    <button
+        id="setUnloadAreaButton"
+        class="admin-button"
+    >
+        设置当前位置为卸载区
+    </button>
+
+
+    <div
+        id="savedUnloadArea"
+        class="admin-info"
+    >
+        尚未保存卸载区
+    </div>
+
+
+    <button
+        id="clearAreasButton"
+        class="danger-button"
+    >
+        清除已保存区域
+    </button>
+
+</section>
 
     <!-- =========================
          系统信息
@@ -524,6 +601,12 @@ app.js
 -->
 
 
+<script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+</script>
+
+<script src="supabase.js"></script>
+
 <script src="storage.js"></script>
 
 <script src="gps.js"></script>
@@ -531,8 +614,6 @@ app.js
 <script src="weather.js"></script>
 
 <script src="app.js"></script>
-
-
 </body>
 
 </html>
