@@ -2,523 +2,536 @@
 <html lang="zh-CN">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
         name="viewport"
-        content="width=device-width, initial-scale=1.0"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     >
 
-    <title>矿山扫码计数系统</title>
+    <meta
+        name="theme-color"
+        content="#1f2937"
+    >
 
-    <script
-        src="https://unpkg.com/html5-qrcode"
-        type="text/javascript">
-    </script>
+    <title>矿山运输管理系统 V1.0</title>
 
-    <style>
-
-        body {
-            font-family: Arial, "Microsoft YaHei", sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        h1 {
-            text-align: center;
-            font-size: 24px;
-        }
-
-        label {
-            display: block;
-            margin-top: 18px;
-            margin-bottom: 8px;
-        }
-
-        input {
-            width: 100%;
-            padding: 14px;
-            font-size: 16px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-        }
-
-        button {
-            width: 100%;
-            margin-top: 16px;
-            padding: 15px;
-            font-size: 18px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        #location,
-        #scanResult,
-        #result {
-            margin-top: 16px;
-            padding: 15px;
-            background: #eeeeee;
-            border-radius: 8px;
-            line-height: 1.8;
-        }
-
-        #reader {
-            margin-top: 20px;
-            width: 100%;
-        }
-
-    </style>
-
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
 </head>
+
 
 <body>
 
-<div class="container">
+<div class="app">
 
-    <h1>矿山扫码计数系统</h1>
+    <!-- =========================
+         顶部
+    ========================== -->
 
-    <label>司机姓名</label>
+    <header class="header">
 
-    <input
-        id="driver"
-        type="text"
-        placeholder="请输入司机姓名"
+        <h1>矿山运输管理系统</h1>
+
+        <div class="version">
+            V1.0
+        </div>
+
+    </header>
+
+
+    <!-- =========================
+         日期
+    ========================== -->
+
+    <section class="card date-card">
+
+        <div class="card-label">
+            今日日期
+        </div>
+
+        <div
+            id="todayDate"
+            class="date-text"
+        >
+            ----
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         司机信息
+    ========================== -->
+
+    <section class="card">
+
+        <div class="section-title">
+            司机信息
+        </div>
+
+
+        <label for="driver">
+            司机姓名
+        </label>
+
+        <input
+            id="driver"
+            type="text"
+            placeholder="请输入司机姓名"
+            autocomplete="off"
+        >
+
+
+        <label for="truck">
+            车辆编号
+        </label>
+
+        <input
+            id="truck"
+            type="text"
+            placeholder="例如：北奔023"
+            autocomplete="off"
+        >
+
+        <div
+            id="driverSaveStatus"
+            class="small-text"
+        >
+            输入后自动保存
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         今日趟数
+    ========================== -->
+
+    <section class="card count-card">
+
+        <div class="card-label">
+            今日运输趟数
+        </div>
+
+        <div
+            id="tripCount"
+            class="trip-count"
+        >
+            0
+        </div>
+
+        <div class="count-unit">
+            趟
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         当前运输状态
+    ========================== -->
+
+    <section class="card">
+
+        <div class="card-label">
+            当前运输状态
+        </div>
+
+        <div
+            id="transportStatus"
+            class="main-status"
+        >
+            等待装车
+        </div>
+
+        <div
+            id="loadTimeStatus"
+            class="small-text"
+        >
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         当前区域
+    ========================== -->
+
+    <section class="card">
+
+        <div class="card-label">
+            当前作业区域
+        </div>
+
+        <div
+            id="areaName"
+            class="main-status"
+        >
+            正在获取位置...
+        </div>
+
+
+        <div
+            id="areaDistance"
+            class="small-text"
+        >
+            等待GPS定位
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         GPS
+    ========================== -->
+
+    <section class="card">
+
+        <div class="section-title">
+            GPS定位
+        </div>
+
+        <div
+            id="gpsState"
+            class="gps-state"
+        >
+            ● 正在启动定位
+        </div>
+
+
+        <div class="data-grid">
+
+            <div class="data-item">
+
+                <span>
+                    纬度
+                </span>
+
+                <strong id="latitude">
+                    --
+                </strong>
+
+            </div>
+
+
+            <div class="data-item">
+
+                <span>
+                    经度
+                </span>
+
+                <strong id="longitude">
+                    --
+                </strong>
+
+            </div>
+
+
+            <div class="data-item">
+
+                <span>
+                    定位精度
+                </span>
+
+                <strong id="accuracy">
+                    --
+                </strong>
+
+            </div>
+
+
+            <div class="data-item">
+
+                <span>
+                    定位时间
+                </span>
+
+                <strong id="gpsTime">
+                    --
+                </strong>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         天气
+    ========================== -->
+
+    <section class="card">
+
+        <div class="section-title">
+            当前区域天气
+        </div>
+
+
+        <div
+            id="weatherStatus"
+            class="weather-status"
+        >
+            等待GPS定位...
+        </div>
+
+
+        <div
+            id="weatherContent"
+            class="weather-content hidden"
+        >
+
+            <div class="weather-main">
+
+                <div
+                    id="weatherText"
+                    class="weather-name"
+                >
+                    --
+                </div>
+
+                <div
+                    id="temperature"
+                    class="temperature"
+                >
+                    --℃
+                </div>
+
+            </div>
+
+
+            <div class="data-grid">
+
+                <div class="data-item">
+
+                    <span>
+                        体感温度
+                    </span>
+
+                    <strong id="apparentTemperature">
+                        --
+                    </strong>
+
+                </div>
+
+
+                <div class="data-item">
+
+                    <span>
+                        湿度
+                    </span>
+
+                    <strong id="humidity">
+                        --
+                    </strong>
+
+                </div>
+
+
+                <div class="data-item">
+
+                    <span>
+                        风速
+                    </span>
+
+                    <strong id="windSpeed">
+                        --
+                    </strong>
+
+                </div>
+
+
+                <div class="data-item">
+
+                    <span>
+                        降水
+                    </span>
+
+                    <strong id="precipitation">
+                        --
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="weatherUpdateTime"
+                class="small-text"
+            >
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         操作按钮
+    ========================== -->
+
+    <section class="card action-card">
+
+        <div class="section-title">
+            运输操作
+        </div>
+
+
+        <button
+            id="loadButton"
+            class="action-button load-button"
+            disabled
+        >
+            已装车
+        </button>
+
+
+        <button
+            id="unloadButton"
+            class="action-button unload-button"
+            disabled
+        >
+            已卸车
+        </button>
+
+
+        <div
+            id="operationHint"
+            class="operation-hint"
+        >
+            正在等待GPS定位
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         最新完成
+    ========================== -->
+
+    <section
+        id="latestTripCard"
+        class="card hidden"
     >
 
-    <label>车辆编号</label>
+        <div class="section-title">
+            最新完成
+        </div>
 
-    <input
-        id="truck"
-        type="text"
-        placeholder="例如：北奔023"
-    >
+        <div
+            id="latestTrip"
+        >
+        </div>
 
-    <button onclick="getLocation()">
-        获取当前位置
-    </button>
+    </section>
 
-    <div id="location">
-        当前状态：尚未获取定位
-    </div>
 
-    <button onclick="startScanner()">
-        开始扫描二维码
-    </button>
+    <!-- =========================
+         今日记录
+    ========================== -->
 
-    <div id="reader"></div>
+    <section class="card">
 
-    <div id="scanResult">
-        尚未扫描二维码
-    </div>
+        <div class="section-title records-title">
 
-    <div id="result">
-        等待位置验证
-    </div>
+            <span>
+                今日运输记录
+            </span>
+
+            <span
+                id="recordCount"
+                class="record-count"
+            >
+                0条
+            </span>
+
+        </div>
+
+
+        <div
+            id="tripRecords"
+            class="records"
+        >
+
+            <div class="empty-record">
+                今日暂无运输记录
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         系统信息
+    ========================== -->
+
+    <section class="card system-card">
+
+        <div class="section-title">
+            系统状态
+        </div>
+
+
+        <div
+            id="systemMessage"
+            class="system-message"
+        >
+            系统正在启动...
+        </div>
+
+    </section>
+
+
+    <footer>
+
+        矿山运输管理系统 V1.0
+
+        <br>
+
+        GPS电子围栏运输计数
+
+    </footer>
 
 </div>
 
 
-<script>
+<!--
+==================================================
+脚本加载顺序不能随便改
+==================================================
 
-    let currentLat = null;
-    let currentLng = null;
-    let currentAccuracy = null;
+storage.js
+负责：
+日期、司机、车辆、趟数、运输记录
 
-    let scannerStarted = false;
+gps.js
+负责：
+GPS持续定位、电子围栏、区域判断
 
-    let html5QrCode = null;
+weather.js
+负责：
+当前位置天气
 
+app.js
+负责：
+装车、卸车、界面和整个系统逻辑
+==================================================
+-->
 
-    function getLocation() {
 
-        const locationBox =
-            document.getElementById("location");
+<script src="storage.js"></script>
 
-        locationBox.innerHTML =
-            "正在获取定位...";
+<script src="gps.js"></script>
 
-        if (!navigator.geolocation) {
+<script src="weather.js"></script>
 
-            locationBox.innerHTML =
-                "当前浏览器不支持GPS定位";
+<script src="app.js"></script>
 
-            return;
-        }
-
-
-        navigator.geolocation.getCurrentPosition(
-
-            function(position) {
-
-                currentLat =
-                    position.coords.latitude;
-
-                currentLng =
-                    position.coords.longitude;
-
-                currentAccuracy =
-                    position.coords.accuracy;
-
-                locationBox.innerHTML =
-                    "定位成功！" +
-                    "<br><br>" +
-
-                    "纬度：" +
-                    currentLat.toFixed(6) +
-
-                    "<br>" +
-
-                    "经度：" +
-                    currentLng.toFixed(6) +
-
-                    "<br>" +
-
-                    "定位精度：" +
-                    currentAccuracy.toFixed(1) +
-                    " 米";
-
-            },
-
-
-            function(error) {
-
-                locationBox.innerHTML =
-                    "定位失败，请检查位置权限";
-
-            },
-
-
-            {
-                enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 0
-            }
-
-        );
-
-    }
-
-
-
-    function getDistance(
-        lat1,
-        lon1,
-        lat2,
-        lon2
-    ) {
-
-        const R = 6371000;
-
-        const radLat1 =
-            lat1 * Math.PI / 180;
-
-        const radLat2 =
-            lat2 * Math.PI / 180;
-
-        const deltaLat =
-            (lat2 - lat1) *
-            Math.PI / 180;
-
-        const deltaLon =
-            (lon2 - lon1) *
-            Math.PI / 180;
-
-        const a =
-            Math.sin(deltaLat / 2) *
-            Math.sin(deltaLat / 2) +
-
-            Math.cos(radLat1) *
-            Math.cos(radLat2) *
-
-            Math.sin(deltaLon / 2) *
-            Math.sin(deltaLon / 2);
-
-        const c =
-            2 *
-            Math.atan2(
-                Math.sqrt(a),
-                Math.sqrt(1 - a)
-            );
-
-        return R * c;
-    }
-
-
-
-    function startScanner() {
-
-        if (scannerStarted) {
-            return;
-        }
-
-
-        html5QrCode =
-            new Html5Qrcode("reader");
-
-
-        const config = {
-
-            fps: 10,
-
-            qrbox: {
-                width: 250,
-                height: 250
-            }
-
-        };
-
-
-        html5QrCode.start(
-
-            {
-                facingMode: "environment"
-            },
-
-            config,
-
-            onScanSuccess,
-
-            onScanFailure
-
-        )
-
-        .then(function() {
-
-            scannerStarted = true;
-
-        })
-
-        .catch(function(error) {
-
-            document.getElementById(
-                "scanResult"
-            ).innerHTML =
-                "摄像头启动失败：" +
-                error;
-
-        });
-
-    }
-
-
-
-    function onScanSuccess(
-        decodedText,
-        decodedResult
-    ) {
-
-        document.getElementById(
-            "scanResult"
-        ).innerHTML =
-
-            "扫描成功！" +
-
-            "<br>" +
-
-            "二维码编号：" +
-            decodedText;
-
-
-        stopScanner();
-
-
-        checkQrPoint(decodedText);
-
-    }
-
-
-
-    function onScanFailure(error) {
-
-        // 没扫到二维码时不提示，
-        // 否则页面会不停刷错误信息。
-
-    }
-
-
-
-    function stopScanner() {
-
-        if (!html5QrCode) {
-            return;
-        }
-
-
-        html5QrCode.stop()
-
-        .then(function() {
-
-            scannerStarted = false;
-
-            html5QrCode.clear();
-
-        })
-
-        .catch(function(error) {
-
-            console.log(error);
-
-        });
-
-    }
-
-
-
-    function checkQrPoint(qrText) {
-
-        const resultBox =
-            document.getElementById("result");
-
-
-        if (
-            currentLat === null ||
-            currentLng === null
-        ) {
-
-            resultBox.innerHTML =
-                "二维码扫描成功，但请先获取GPS位置";
-
-            return;
-
-        }
-
-
-        const qrCode =
-            qrText
-                .trim()
-                .toUpperCase();
-
-
-        let targetLat = null;
-
-        let targetLng = null;
-
-        let pointName = "";
-
-        let radius = 50;
-
-
-
-        if (qrCode === "XIEZAI01") {
-
-            // 修改成你的真实卸载点坐标
-
-            targetLat = 43.012730;
-
-            targetLng =101.228976;
-
-            pointName =
-                "1号卸载点";
-
-        }
-
-
-        else {
-
-            resultBox.innerHTML =
-                "二维码不存在：" +
-                qrCode;
-
-            return;
-
-        }
-
-
-
-        const distance =
-            getDistance(
-
-                currentLat,
-
-                currentLng,
-
-                targetLat,
-
-                targetLng
-
-            );
-
-
-        if (distance <= radius) {
-
-            resultBox.innerHTML =
-
-                "位置验证成功！" +
-
-                "<br><br>" +
-
-                "点位：" +
-                pointName +
-
-                "<br>" +
-
-                "二维码：" +
-                qrCode +
-
-                "<br>" +
-
-                "当前距离：" +
-                distance.toFixed(1) +
-                " 米" +
-
-                "<br>" +
-
-                "允许范围：" +
-                radius +
-                " 米" +
-
-                "<br><br>" +
-
-                "✅ 允许计数";
-
-        }
-
-
-        else {
-
-            resultBox.innerHTML =
-
-                "位置验证失败！" +
-
-                "<br><br>" +
-
-                "点位：" +
-                pointName +
-
-                "<br>" +
-
-                "当前距离：" +
-                distance.toFixed(1) +
-                " 米" +
-
-                "<br>" +
-
-                "允许范围：" +
-                radius +
-                " 米" +
-
-                "<br><br>" +
-
-                "❌ 超出范围，禁止计数";
-
-        }
-
-    }
-
-</script>
 
 </body>
 
